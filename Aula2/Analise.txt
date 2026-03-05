@@ -1,0 +1,8 @@
+2)
+call	fork@PLT = acontece quando precisamos para controlar processos
+call	wait@PLT = acontece quando precisamos para controlar processos
+call	printf@PLT = acontece quando e preciso usar um IO (tela)
+Acontece quando precisamos mudar o estado
+
+3)
+  Uma usa pra gerenciar processos e a outra usada pra gerenciar threads
