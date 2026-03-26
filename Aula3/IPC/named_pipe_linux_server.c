@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #define SOCK_PATH "/tmp/pipeso"
 
