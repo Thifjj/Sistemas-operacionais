@@ -5,13 +5,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "fifo_config.h"
 
 int main() {
     FILE *arquivo_in, *arquivo_out;
     char tipo[3];
     int largura, altura, max_valor;
     unsigned char *pixels; // Usamos unsigned char porque P5 armazena bytes (0-255)
-    char * myfifo = "/tmp/myfifo";
+    char * myfifo = fifo_path;
     int fd;
 
     // Creating the named file(FIFO)
@@ -33,13 +34,13 @@ int main() {
         return 1;
     }
 
-    // Pular comentários se existirem
-    char c = fgetc(arquivo_in);
-    while (c == '#') {
-        while (fgetc(arquivo_in) != '\n');
-        c = fgetc(arquivo_in);
-    }
-    ungetc(c, arquivo_in);
+    // // Pular comentários se existirem
+    // char c = fgetc(arquivo_in);
+    // while (c == '#') {
+    //     while (fgetc(arquivo_in) != '\n');
+    //     c = fgetc(arquivo_in);
+    // }
+    // ungetc(c, arquivo_in);
 
     fscanf(arquivo_in, "%d %d\n%d\n", &largura, &altura, &max_valor);
 

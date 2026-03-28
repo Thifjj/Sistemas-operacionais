@@ -4,26 +4,37 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "fifo_config.h"
 #include <pthread.h>
 
 // Variáveis Globais
-int i_PP = 0;
-unsigned char *pixels;
-int total_global = 0; 
-int largura, altura, max_valor; // Adicionadas aqui
+pthread_mutex_t mutex_cor = PTHREAD_MUTEX_INITIALIZER; // protege i_pixel_count entre threads
+int i_pixel_count = 0; // índice do próximo pixel a ser processado
+unsigned char *pixels; // buffer onde os pixels lidos da FIFO serão armazenados
+int total_global = 0; // quantidade total de pixels = largura * altura
+int largura, altura, max_valor; // informações do cabeçalho PGM
 
 // Função para as threads
 void *inverte_valor_cor(void *arg) {
-    while (i_PP < total_global) {
-        // Cálculo simples de inversão
-        pixels[i_PP] = (unsigned char)(255 - pixels[i_PP]);
-        i_PP++;
+    while (1) {
+        // pega o próximo índice disponível de pixel com proteção de mutex.
+        // Assim, duas threads não processam o mesmo pixel.
+        pthread_mutex_lock(&mutex_cor);
+        if (i_pixel_count >= total_global) {
+            pthread_mutex_unlock(&mutex_cor);
+            return NULL;
+        }
+        int index = i_pixel_count++;
+        pthread_mutex_unlock(&mutex_cor);
+
+        // inverte o valor do pixel no buffer já preenchido:
+        // o byte está em pixels[index] e é substituído por 255 - valor.
+        pixels[index] = (unsigned char)(255 - pixels[index]);
     }
-    return NULL;
 }
 
 int main() {
-    char *myfifo = "/tmp/myfifo";
+    char *myfifo = fifo_path;
     int fd;
     
     printf("Consumidor: Aguardando produtor abrir a FIFO...\n");
@@ -49,29 +60,34 @@ int main() {
         return 1;
     }
 
-    // --- PASSO 3: LER OS PIXELS (LOOP GARANTIDO) ---
-    int lido_agora = 0;
-    int total_lido = 0;
-
-    while (total_lido < total_global) {
-        lido_agora = read(fd, pixels + total_lido, total_global - total_lido);
-        if (lido_agora <= 0) break; 
-        total_lido += lido_agora;
+    // --- PASSO 3: LER OS PIXELS ---
+    // O read() copia bytes diretamente para o buffer "pixels".
+    // A cada iteração ele escreve a partir de pixels + bytes_lidos,
+    // garantindo que os dados sejam colocados em sequência no buffer.
+    int bytes_lidos = 0;
+    while (bytes_lidos < total_global) {
+        ssize_t n = read(fd, pixels + bytes_lidos, total_global - bytes_lidos);
+        if (n <= 0) {
+            perror("Erro ao ler pixels");
+            close(fd);
+            free(pixels);
+            return 1;
+        }
+        bytes_lidos += n;
     }
-    printf("Total lido da FIFO: %d bytes.\n", total_lido);
 
-    // --- PASSO 4: PROCESSAR ---
-    if (total_lido > 0) {
-        printf("Iniciando processamento...\n");
+    // dividido em 4 threads o processo de inverter o valor do pixel
+    pthread_t Tid1, Tid2, Tid3, Tid4;
+        pthread_create(&Tid1, NULL, inverte_valor_cor, NULL);
+        pthread_create(&Tid2, NULL, inverte_valor_cor, NULL);
+        pthread_create(&Tid3, NULL, inverte_valor_cor, NULL);
+        pthread_create(&Tid4, NULL, inverte_valor_cor, NULL);
+        pthread_join(Tid1, NULL);
+        pthread_join(Tid2, NULL);
+        pthread_join(Tid3, NULL);
+        pthread_join(Tid4, NULL);
         
-        // Se quiser usar threads de verdade, descomente aqui:
-        /*
-        pthread_t thread1;
-        pthread_create(&thread1, NULL, inverte_valor_cor, NULL);
-        pthread_join(thread1, NULL);
-        */
         
-        inverte_valor_cor(NULL); // Chamada direta por enquanto
 
         // --- PASSO 5: SALVAR ARQUIVO PGM VÁLIDO ---
         FILE *out = fopen("saida_final.pgm", "wb");
@@ -84,7 +100,7 @@ int main() {
         } else {
             perror("Erro ao criar arquivo de saída");
         }
-    }
+
 
     close(fd);
     free(pixels);
