@@ -1,4 +1,5 @@
 #include "config.h" // Seu arquivo de structs e funcoes
+#include <sys/time.h>
 
 #define NUM_TASKS 8
 #define NUM_THREADS 4
@@ -36,7 +37,7 @@ int main(int argc, char* argv[]) {
     // Configuração baseada nos argumentos de linha de comando
     if(modo == NEGATIVO) {
         g_mode = NEGATIVO;
-        if(argc >= 2) {
+        if(argc >= 3) { // Ajustado para pegar o argumento correto (argv[2])
             num_threads = atoi(argv[2]);
         } else {
             num_threads = NUM_THREADS;
@@ -47,8 +48,8 @@ int main(int argc, char* argv[]) {
             printf("Erro: Fatiamento exige os parametros t1 e t2.\n");
             return 1;
         }
-        g_t1 = atoi(argv[3]);
-        g_t2 = atoi(argv[4]);
+        g_t1 = atoi(argv[2]); // Ajustado indices dos argumentos
+        g_t2 = atoi(argv[3]);
         if(argc >= 5) {
             num_threads = atoi(argv[4]);
         } else {
@@ -118,6 +119,11 @@ int main(int argc, char* argv[]) {
     pthread_t thread[num_threads]; 
     int IDs_threads[num_threads]; 
     
+    struct timeval start, end; // Usando timeval agora
+    
+    printf("Iniciando processamento paralelo...\n");
+    gettimeofday(&start, NULL); // INICIA O CRONÔMETRO AQUI
+
     for(int i = 0; i < num_threads; i++){
         IDs_threads[i] = i + 1;
         if(g_mode == NEGATIVO){
@@ -132,10 +138,26 @@ int main(int argc, char* argv[]) {
         pthread_join(thread[i], NULL);
     }
 
+    gettimeofday(&end, NULL); // PARA O CRONÔMETRO AQUI
+    
+    // Calcula o tempo total em segundos (usando microsegundos agora)
+    double tempo_gasto = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
+    printf("Processamento finalizado em %f segundos.\n", tempo_gasto);
+
     sem_destroy(&semaforo);
     pthread_mutex_destroy(&mutex);
 
-    // --- Salvando o arquivo de saída ---
+    // --- Salvando o arquivo de saída (Log de Tempos) ---
+    FILE *log_file = fopen("tempos_execucao.txt", "a"); // "a" faz append (adiciona no final do arquivo sem apagar o anterior)
+    if(log_file != NULL){
+        fprintf(log_file, "Filtro: %s | Threads: %d | Tempo: %f segundos\n", 
+                (g_mode == NEGATIVO) ? "NEGATIVO" : "SLICE", num_threads, tempo_gasto);
+        fclose(log_file);
+    } else {
+        printf("Aviso: Nao foi possivel salvar o log de tempos no arquivo.\n");
+    }
+
+    // --- Salvando o arquivo de saída (Imagem) ---
     // Verifica se o arquivo já existe para não sobrescrever (saida1.pgm, saida2.pgm...)
     int contador = 1, verifica;
     do {
@@ -172,8 +194,6 @@ void aplicar_negativo(void* arg){
         int tarefa_id = prox_tarefa++;
         pthread_mutex_unlock(&mutex);
 
-        printf("Thread %d: Processando tarefa %d (linhas %d ate %d)\n", thread_id, tarefa_id, tarefa[tarefa_id].row_start, tarefa[tarefa_id].row_end);
-
         // Processa o bloco de linhas designado para esta tarefa
         for(int i = tarefa[tarefa_id].row_start; i < tarefa[tarefa_id].row_end; i++){
             for(int j = 0; j < g_imagem.w; j++){
@@ -201,8 +221,6 @@ void aplicar_fatiamento(void* arg){
         }
         int tarefa_id = prox_tarefa++;
         pthread_mutex_unlock(&mutex);
-
-        printf("Thread %d: Processando tarefa %d (linhas %d ate %d)\n", thread_id, tarefa_id, tarefa[tarefa_id].row_start, tarefa[tarefa_id].row_end);
 
         // Processa o bloco de linhas designado para esta tarefa
         for(int i = tarefa[tarefa_id].row_start; i < tarefa[tarefa_id].row_end; i++){
