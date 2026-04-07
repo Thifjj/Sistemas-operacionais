@@ -1,8 +1,8 @@
 #include "config.h" // Seu arquivo de structs e funcoes
 #include <sys/time.h>
 
-#define NUM_TASKS 8
-#define NUM_THREADS 4
+#define NUM_TASKS 32
+#define NUM_THREADS 2
 
 // Controle de concorrência
 sem_t semaforo;
