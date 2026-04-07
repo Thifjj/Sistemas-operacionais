@@ -2,23 +2,19 @@
 
 int main(int argc, char* argv[]) {
     // Verificação simples para garantir que os argumentos foram passados
-    if (argc < 3) {
-        printf("Uso: %s <caminho_da_fifo> <imagem.pgm>\n", argv[0]);
-        return 1;
-    }
 
     PGM imagem;
     Header cabecalho;
 
-    const char* path = argv[1];         // Caminho da FIFO (ex: /tmp/fifo)
-    const char* nome_arquivo = argv[2]; // Nome da imagem PGM
+    const char* path = FIFO_PATH;         // Caminho da FIFO (ex: /tmp/fifo)
+    const char* nome_arquivo = IMAGE_PATH; // Nome da imagem PGM
 
     // Cria a named pipe (FIFO) com permissões de leitura e escrita
     mkfifo(path, 0666);
 
     // Lê e salva a imagem na struct PGM usando a função do seu cabeçalho
     printf("Produtor: Lendo a imagem %s...\n", nome_arquivo);
-    if (read_PGM(nome_arquivo, &imagem) != 0) {
+    if (read_PGM(nome_arquivo, &imagem) != 0) {//escreve a imagem na struct PGM
         printf("Erro ao processar a imagem. Encerrando.\n");
         return 1;
     }

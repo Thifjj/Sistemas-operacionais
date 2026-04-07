@@ -20,9 +20,9 @@ void aplicar_fatiamento(void* arg);
 
 int main(int argc, char* argv[]) {
     // Verificação básica de argumentos
-    if(argc < 3) {
-        printf("Uso Negativo: %s <caminho_fifo> 0 [num_threads]\n", argv[0]);
-        printf("Uso Fatiamento: %s <caminho_fifo> 1 <t1> <t2> [num_threads]\n", argv[0]);
+    if(argc < 2) {
+        printf("Uso Negativo: 0 [num_threads]\n");
+        printf("Uso Fatiamento:  1 <t1> <t2> [num_threads]\n");
         return 1;
     }
 
@@ -30,27 +30,27 @@ int main(int argc, char* argv[]) {
     int num_threads;
     char nome[50]; 
 
-    const char* path = argv[1]; 
-    int modo = atoi(argv[2]); 
+    const char* path = FIFO_PATH; 
+    int modo = atoi(argv[1]); 
 
     // Configuração baseada nos argumentos de linha de comando
     if(modo == NEGATIVO) {
         g_mode = NEGATIVO;
-        if(argc >= 4) {
-            num_threads = atoi(argv[3]);
+        if(argc >= 2) {
+            num_threads = atoi(argv[2]);
         } else {
             num_threads = NUM_THREADS;
         }
     } else if(modo == SLICE) {
         g_mode = SLICE;
-        if(argc < 5) {
+        if(argc < 4) {
             printf("Erro: Fatiamento exige os parametros t1 e t2.\n");
             return 1;
         }
         g_t1 = atoi(argv[3]);
         g_t2 = atoi(argv[4]);
-        if(argc >= 6) {
-            num_threads = atoi(argv[5]);
+        if(argc >= 5) {
+            num_threads = atoi(argv[4]);
         } else {
             num_threads = NUM_THREADS;
         }
