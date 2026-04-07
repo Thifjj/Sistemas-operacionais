@@ -1,73 +1,70 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include "fifo_config.h"
+#include "config.h" // Substitua pelo nome real do seu arquivo de cabeçalho, se for diferente
 
-int main() {
-    FILE *arquivo_in, *arquivo_out;
-    char tipo[3];
-    int largura, altura, max_valor;
-    unsigned char *pixels; // Usamos unsigned char porque P5 armazena bytes (0-255)
-    char * myfifo = fifo_path;
-    int fd;
-
-    // Creating the named file(FIFO)
-    // mkfifo(<pathname>, <permission>)
-    mkfifo(myfifo, 0666);
-
-    // --- 1. LEITURA (FORMATO P5 - BINÁRIO) ---
-    arquivo_in = fopen("imagem.pgm", "rb"); // "rb" para leitura binária
-    if (!arquivo_in) {
-        printf("Erro ao abrir arquivo.\n");
+int main(int argc, char* argv[]) {
+    // Verificação simples para garantir que os argumentos foram passados
+    if (argc < 3) {
+        printf("Uso: %s <caminho_da_fifo> <imagem.pgm>\n", argv[0]);
         return 1;
     }
 
-    // Ler cabeçalho (o cabeçalho ainda é texto, mesmo no P5)
-    fscanf(arquivo_in, "%s\n", tipo);
-    if (tipo[1] != '5') {
-        printf("Erro: Este código é apenas para PGM P5.\n");
-        fclose(arquivo_in);
+    PGM imagem;
+    Header cabecalho;
+
+    const char* path = argv[1];         // Caminho da FIFO (ex: /tmp/fifo)
+    const char* nome_arquivo = argv[2]; // Nome da imagem PGM
+
+    // Cria a named pipe (FIFO) com permissões de leitura e escrita
+    mkfifo(path, 0666);
+
+    // Lê e salva a imagem na struct PGM usando a função do seu cabeçalho
+    printf("Produtor: Lendo a imagem %s...\n", nome_arquivo);
+    if (read_PGM(nome_arquivo, &imagem) != 0) {
+        printf("Erro ao processar a imagem. Encerrando.\n");
         return 1;
     }
 
-    // // Pular comentários se existirem
-    // char c = fgetc(arquivo_in);
-    // while (c == '#') {
-    //     while (fgetc(arquivo_in) != '\n');
-    //     c = fgetc(arquivo_in);
-    // }
-    // ungetc(c, arquivo_in);
+    // Prepara o header com os metadados para enviar ao consumidor (Worker)
+    cabecalho.w = imagem.w;
+    cabecalho.h = imagem.h;
+    cabecalho.maxv = imagem.maxv;
+    cabecalho.mode = NEGATIVO;  // Define o modo inicial (pode ser alterado depois)
+    cabecalho.t1 = 0;
+    cabecalho.t2 = 0;
 
-    fscanf(arquivo_in, "%d %d\n%d\n", &largura, &altura, &max_valor);
+    // Abre a named pipe (A execução vai pausar aqui até o Consumidor abrir para leitura)
+    printf("Produtor: Esperando pelo Consumidor (Worker) abrir a FIFO...\n");
+    int fd = open(path, O_WRONLY);
+    if (fd == -1) {
+        perror("Erro ao abrir a FIFO para escrita");
+        free(imagem.data);
+        return 1;
+    }
 
-    // Alocação da memória
-    int total_pixels = largura * altura;
-    pixels = (unsigned char *)malloc(total_pixels * sizeof(unsigned char));
+    printf("Produtor: Consumidor conectado. Enviando cabecalho e pixels...\n");
 
-    // LER OS DADOS BINÁRIOS DE UMA VEZ SÓ
-    fread(pixels, sizeof(unsigned char), total_pixels, arquivo_in);
-    fclose(arquivo_in);
+    // Envia a struct do cabeçalho primeiro para o consumidor saber as dimensões
+    write(fd, &cabecalho, sizeof(Header));
 
-    printf("Imagem P5 lida: %dx%d\n", largura, altura);
+    // Envia os pixels em um loop para garantir que nada se perca no buffer
+    size_t tamanho_esperado = imagem.w * imagem.h;
+    size_t tamanho_enviado = 0;
+    
+    while(tamanho_enviado < tamanho_esperado) {
+        // write retorna a quantidade de bytes que realmente conseguiu escrever nesta iteração
+        size_t n = write(fd, imagem.data + tamanho_enviado, tamanho_esperado - tamanho_enviado);
+        
+        if (n == -1) {
+            perror("Erro na escrita dos dados");
+            break;
+        }
+        tamanho_enviado += n;
+    }
 
-    fd = open(myfifo, O_WRONLY);
-    if (fd == -1) return 1;
+    printf("Produtor: %zu bytes de dados enviados com sucesso.\n", tamanho_enviado);
 
-    // ENVIA O CABEÇALHO PRIMEIRO (para o consumidor saber o tamanho)
-    write(fd, &largura, sizeof(int));
-    write(fd, &altura, sizeof(int));
-    write(fd, &max_valor, sizeof(int));
-
-    // ENVIA OS PIXELS
-    write(fd, pixels, total_pixels);
-
+    // Limpeza da memória alocada dinamicamente pelo read_PGM e fechamento da FIFO
     close(fd);
-    free(pixels);
-    return 0;
+    free(imagem.data);
 
     return 0;
 }
