@@ -12,22 +12,22 @@ int main(int argc, char* argv[]) {
     // Cria a named pipe (FIFO) com permissões de leitura e escrita
     mkfifo(path, 0666);
 
-    // Lê e salva a imagem na struct PGM usando a função do seu cabeçalho
+    // Lê e salva a imagem na struct PGM
     printf("Produtor: Lendo a imagem %s...\n", nome_arquivo);
     if (read_PGM(nome_arquivo, &imagem) != 0) {//escreve a imagem na struct PGM
         printf("Erro ao processar a imagem. Encerrando.\n");
         return 1;
     }
 
-    // Prepara o header com os metadados para enviar ao consumidor (Worker)
+    // ajeita o cabecalho p/enviar consumidor
     cabecalho.w = imagem.w;
     cabecalho.h = imagem.h;
     cabecalho.maxv = imagem.maxv;
-    cabecalho.mode = NEGATIVO;  // Define o modo inicial (pode ser alterado depois)
+    cabecalho.mode = NEGATIVO;  // so um default
     cabecalho.t1 = 0;
     cabecalho.t2 = 0;
 
-    // Abre a named pipe (A execução vai pausar aqui até o Consumidor abrir para leitura)
+    // abre a fifo (pausa aqui ate o consumidor abrir pra leitura)
     printf("Produtor: Esperando pelo Consumidor (Worker) abrir a FIFO...\n");
     int fd = open(path, O_WRONLY);
     if (fd == -1) {
@@ -41,24 +41,23 @@ int main(int argc, char* argv[]) {
     // Envia a struct do cabeçalho primeiro para o consumidor saber as dimensões
     write(fd, &cabecalho, sizeof(Header));
 
-    // Envia os pixels em um loop para garantir que nada se perca no buffer
-    size_t tamanho_esperado = imagem.w * imagem.h;
-    size_t tamanho_enviado = 0;
+    // Envia os bytes em loop
+    size_t bytes_totais = imagem.w * imagem.h;
+    size_t bytes_enviado = 0;
     
-    while(tamanho_enviado < tamanho_esperado) {
+    while(bytes_enviado < bytes_totais) {
         // write retorna a quantidade de bytes que realmente conseguiu escrever nesta iteração
-        size_t n = write(fd, imagem.data + tamanho_enviado, tamanho_esperado - tamanho_enviado);
-        
+        size_t n = write(fd, imagem.data + bytes_enviado, bytes_totais - bytes_enviado);
         if (n == -1) {
             perror("Erro na escrita dos dados");
             break;
         }
-        tamanho_enviado += n;
+        bytes_enviado += n;
     }
 
-    printf("Produtor: %zu bytes de dados enviados com sucesso.\n", tamanho_enviado);
+    printf("Produtor: %zu bytes de dados enviados com sucesso.\n", bytes_enviado);
 
-    // Limpeza da memória alocada dinamicamente pelo read_PGM e fechamento da FIFO
+    // limpa memoria
     close(fd);
     free(imagem.data);
 

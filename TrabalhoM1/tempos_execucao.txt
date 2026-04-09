@@ -1,0 +1,2 @@
+Filtro: NEGATIVO | Threads: 2 | Tempo: 0.007282 segundos
+Filtro: SLICE | Threads: 2 | Tempo: 0.012544 segundos
