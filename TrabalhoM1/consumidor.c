@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
     }
     close(fd);
 
-    // Divide a imagem em tarefas e por linha
+    // Divide a imagem em tarefas
     int linhas_task = imagem.h / NUM_TASKS;
     int resto_task = imagem.h % NUM_TASKS;
     int linha_atual = 0;
@@ -102,18 +102,16 @@ int main(int argc, char* argv[]) {
     // Cria as Threads
     pthread_t thread[num_threads];
     pthread_attr_t attr; /* set of attributes for the thread */
-    int thread_ids[num_threads];
 
     struct timeval start, end;
     gettimeofday(&start, NULL);
     pthread_attr_init(&attr);
 
     for(int i = 0; i < num_threads; i++){
-        thread_ids[i] = i; // Atribui um ID para cada thread
         if(mode == NEGATIVO){
-            pthread_create(&thread[i], &attr, aplicar_negativo, &thread_ids[i]);
+            pthread_create(&thread[i], &attr, aplicar_negativo, NULL);
         } else {
-            pthread_create(&thread[i], &attr, aplicar_fatiamento, &thread_ids[i]);
+            pthread_create(&thread[i], &attr, aplicar_fatiamento, NULL);
         }
     }
 
@@ -149,14 +147,13 @@ int main(int argc, char* argv[]) {
 
 // Funções de processamento utilizando Mutex
 void *aplicar_negativo(void* arg){
-    int thread_id = *(int *)arg;
     while(1){
         pthread_mutex_lock(&mutex);
         if(prox_tarefa >= NUM_TASKS){
             pthread_mutex_unlock(&mutex);
             break;
         }
-        int tarefa_id = prox_tarefa++;
+        int tarefa_id = prox_tarefa++;   
         pthread_mutex_unlock(&mutex);
 
         for(int i = task[tarefa_id].row_start; i < task[tarefa_id].row_end; i++){
@@ -169,7 +166,6 @@ void *aplicar_negativo(void* arg){
 }
 
 void *aplicar_fatiamento(void* arg){
-    int thread_id = *(int *)arg;
     while(1){
         pthread_mutex_lock(&mutex);
         if(prox_tarefa >= NUM_TASKS){
